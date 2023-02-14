@@ -54,7 +54,7 @@ class PascalVocDataset(Dataset):
 
                 # Only set new box if there is none already!
                 if label[x_S, y_S, 20] == 0.0:
-                    label[x_S, y_S] = 1.0
+                    label[x_S, y_S, 20] = 1.0
                     # Box position and class score
                     label[x_S, y_S, -5:] = torch.tensor([class_score, x_rel_S, y_rel_S, w_rel_S, h_rel_S],
                                                         device=self.device)
