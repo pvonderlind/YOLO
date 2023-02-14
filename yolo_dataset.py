@@ -1,7 +1,7 @@
-import torch
 from torch.utils.data import Dataset
 from torchvision.io import read_image
 import pandas as pd
+import torch
 import os
 
 
@@ -18,11 +18,11 @@ class PascalVocDataset(Dataset):
         self.image_label_paths = pd.read_csv(dataset_files_csv, sep=',', header=None)
         self.image_label_paths.columns = ['image', 'label']
         self.label_dir = 'data/labels/'
-        self.img_dir = 'data/img/'
+        self.img_dir = 'data/images/'
         pass
 
     def __len__(self):
-        return self.image_label_paths.shape[0]
+        pass
 
     def __getitem__(self, idx):
         label_path = os.path.join(self.label_dir, self.image_label_paths.loc[idx, 'label'])
@@ -36,7 +36,7 @@ class PascalVocDataset(Dataset):
 
         with open(label_path, 'r', encoding='utf-8') as file:
             for line in file.read().splitlines():
-                box = [float(val) for val in line.split('  ')]
+                box = [float(val) for val in line.split(' ')]
                 box[0] = int(box[0])
                 boxes.append(box)
 
@@ -53,7 +53,7 @@ class PascalVocDataset(Dataset):
                 h_rel_S = h * self.S
 
                 # Only set new box if there is none already!
-                if label[x_S, y_S] == 0.0:
+                if label[x_S, y_S, 20] == 0.0:
                     label[x_S, y_S] = 1.0
                     # Box position and class score
                     label[x_S, y_S, -5:] = torch.tensor([class_score, x_rel_S, y_rel_S, w_rel_S, h_rel_S],
