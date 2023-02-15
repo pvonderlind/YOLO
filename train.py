@@ -2,6 +2,7 @@ import torch
 from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from yolo_dataset import PascalVocDataset, Compose
 from yolo_v1 import YoloV1, YoloLoss
@@ -11,7 +12,7 @@ if torch.cuda.is_available():
     device = 'cuda'
 
 BATCH_SIZE = 1
-LR = 0.001
+LR = 0.0001
 SEED = 12345678
 VAL_SPLIT = 0.1
 
@@ -22,7 +23,7 @@ B = 2
 IMG_X_DIM = 448
 IMG_Y_DIM = 448
 
-LOG_INTERVAL = 1000
+LOG_INTERVAL = 100
 
 g = torch.Generator().manual_seed(SEED)
 np.random.seed(SEED)
@@ -51,9 +52,12 @@ def get_dataloaders(transforms: Compose) -> tuple[DataLoader, DataLoader, DataLo
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def run_train_loop(train_loader, model, optimizer, loss_fn):
+def run_train_loop(train_loader, model, optimizer, loss_fn, debug=False):
     train_loader_tqdm = tqdm(train_loader, leave=True)
+    gradient_updates = []
+
     for batch_idx, (image, label) in enumerate(train_loader_tqdm):
+        # Forward + Backward pass through model
         image, label = image.to(device), label.to(device)
         out = model(image)
         loss = loss_fn(out, label)
@@ -61,6 +65,15 @@ def run_train_loop(train_loader, model, optimizer, loss_fn):
         loss.backward()
         optimizer.step()
         train_loader_tqdm.set_postfix(loss=loss.item())
+
+        # Debug Metrics
+        if debug:
+            with torch.no_grad():
+                cur_lr = optimizer.param_groups[0]['lr']
+                update = [(cur_lr * p.grad.std() / p.data.std()).log10().item() for p in model.parameters()]
+                gradient_updates.append(update)
+            if batch_idx % LOG_INTERVAL == 0 and batch_idx != 0:
+                plot_gradient_updates(gradient_updates, model.parameters())
 
 
 def main():
@@ -70,7 +83,19 @@ def main():
     transform = Compose([transforms.Resize((IMG_Y_DIM, IMG_X_DIM))])
 
     train_loader, val_loader, test_loader = get_dataloaders(transform)
-    run_train_loop(train_loader, model, optimizer, loss_fn)
+    # TODO: Remove debug setting after debugging!
+    run_train_loop(train_loader, model, optimizer, loss_fn, debug=True)
+
+
+def plot_gradient_updates(gradient_updates: list, parameters):
+    plt.figure(figsize=(20, 4))
+    legends = []
+    for i, p in enumerate(parameters):  # exclude output layer
+        plt.plot([gradient_updates[j][i] for j in range(len(gradient_updates))])
+        legends.append(f'param {i}')
+    plt.plot([0, len(gradient_updates)], [-3, -3], 'k')  # ratios should be at roughly or below 1e-3
+    plt.legend(legends)
+    plt.show()
 
 
 if __name__ == "__main__":
