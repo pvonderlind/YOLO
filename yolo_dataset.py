@@ -22,15 +22,15 @@ class PascalVocDataset(Dataset):
         pass
 
     def __len__(self):
-        pass
+        return self.image_label_paths.shape[0]
 
     def __getitem__(self, idx):
         label_path = os.path.join(self.label_dir, self.image_label_paths.loc[idx, 'label'])
         img_path = os.path.join(self.img_dir, self.image_label_paths.loc[idx, 'image'])
 
         boxes = []
-        label = torch.zeros((self.S, self.S, self.C + 5), device=self.device)
-        image = read_image(img_path)
+        label = torch.zeros((self.S, self.S, self.C + 5  * self.B), device=self.device)
+        image = read_image(img_path).swapaxes(0, -1).swapaxes(0, 1)
 
         # TODO: Add transforms on image and boxes before doing stuff below
 
