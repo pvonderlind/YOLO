@@ -5,15 +5,29 @@ import torch
 import os
 
 
+class Compose(object):
+    """
+    Custom transform, since we don't want to transform the label tensor!
+    """
+
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, image: torch.Tensor, bounding_boxes: torch.Tensor) -> tuple:
+        for transform in self.transforms:
+            image = transform(image)
+        return image, bounding_boxes
+
+
 class PascalVocDataset(Dataset):
 
-    def __init__(self, S: int, B: int, C: int, dataset_files_csv: str, device: str = 'cuda'):
+    def __init__(self, S: int, B: int, C: int, dataset_files_csv: str, transforms: Compose, device: str = 'cuda'):
         self.S = S
         self.B = B
         self.C = C
 
         self.device = device
-        # TODO: Add transforms
+        self.transforms = transforms
 
         self.image_label_paths = pd.read_csv(dataset_files_csv, sep=',', header=None)
         self.image_label_paths.columns = ['image', 'label']
@@ -29,10 +43,8 @@ class PascalVocDataset(Dataset):
         img_path = os.path.join(self.img_dir, self.image_label_paths.loc[idx, 'image'])
 
         boxes = []
-        label = torch.zeros((self.S, self.S, self.C + 5  * self.B), device=self.device)
-        image = read_image(img_path).swapaxes(0, -1).swapaxes(0, 1)
-
-        # TODO: Add transforms on image and boxes before doing stuff below
+        label = torch.zeros((self.S, self.S, self.C + 5 * self.B), device=self.device)
+        image = read_image(img_path)
 
         with open(label_path, 'r', encoding='utf-8') as file:
             for line in file.read().splitlines():
@@ -61,4 +73,5 @@ class PascalVocDataset(Dataset):
                     # Onehot encoding of class score = probabilities of target
                     label[x_S, y_S, class_score] = 1.0
 
-        return image, label
+        image, label = self.transforms(image, label)
+        return image.float(), label
