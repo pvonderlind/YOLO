@@ -9,12 +9,12 @@ def repeat_block(blocks: list[torch.nn.Module], repeats: int) -> list[torch.nn.M
 
 class YoloV1(torch.nn.Module):
 
-    def __init__(self, num_boxes: int = 2, n_classes: int = 20, split_size: int = 7, final_layer_size: int = 4096):
+    def __init__(self, S: int = 7, B: int = 2, C: int = 20, final_layer_size: int = 4096):
         super().__init__()
 
-        self.C = n_classes
-        self.S = split_size
-        self.B = num_boxes
+        self.C = C
+        self.S = S
+        self.B = B
         self.final_layer_size = final_layer_size
 
         self.block_1 = torch.nn.Sequential(
@@ -103,7 +103,7 @@ class YoloLoss(torch.nn.Module):
         self.C = C
         self.l_coord = l_coord
         self.l_noobj = l_noobj
-        self.mse = torch.nn.MSELoss()
+        self.mse = torch.nn.MSELoss(reduction='sum')
 
     def _intersection_over_union(self, pred_box: torch.Tensor, target_box: torch.Tensor):
         """
@@ -126,10 +126,10 @@ class YoloLoss(torch.nn.Module):
         return intersection_areas / (pred_area + target_area - intersection_areas + 1e-6)
 
     def _get_left_right_coords(self, box: torch.Tensor) -> tuple:
-        left_x = box[:, :, 0] - box[:, :, 2] / 2
-        left_y = box[:, :, 1] - box[:, :, 3] / 2
-        right_x = box[:, :, 0] + box[:, :, 2] / 2
-        right_y = box[:, :, 1] + box[:, :, 3] / 2
+        left_x = box[..., 0:1] - box[..., 2:3] / 2
+        left_y = box[..., 1:2] - box[..., 3:4] / 2
+        right_x = box[..., 0:1] + box[..., 2:3] / 2
+        right_y = box[..., 1:2] + box[..., 3:4] / 2
         return left_x, left_y, right_x, right_y
 
     def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
