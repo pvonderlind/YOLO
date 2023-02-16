@@ -39,6 +39,12 @@ class PascalVocDataset(Dataset):
         return self.image_label_paths.shape[0]
 
     def __getitem__(self, idx):
+        """
+        File content format is as follows:
+        Multiple lines per label, each corresponds to a box target in the image.
+        Each line contains:
+        class_label (int), x (float, rel to img), y (float, rel to img), w (float, rel to img), h (float, rel to img)
+        """
         label_path = os.path.join(self.label_dir, self.image_label_paths.loc[idx, 'label'])
         img_path = os.path.join(self.img_dir, self.image_label_paths.loc[idx, 'image'])
 
@@ -52,26 +58,26 @@ class PascalVocDataset(Dataset):
                 box[0] = int(box[0])
                 boxes.append(box)
 
-            for box in boxes:
-                # Note: x,y are relative to the images whole size now -> [0,1]
-                class_score, x, y, w, h = box
-                x_S = int(self.S * x)
-                y_S = int(self.S * y)
-                # Convert coordinates of box relative to the cell
-                x_rel_S = self.S * x - x_S
-                y_rel_S = self.S * y - y_S
-                # Same thing for width and height
-                w_rel_S = w * self.S
-                h_rel_S = h * self.S
+        for box in boxes:
+            # Note: x,y are relative to the images whole size now -> [0,1]
+            class_label, x, y, w, h = box
+            S_row_idx = int(self.S * x)
+            S_col_idx = int(self.S * y)
+            # Convert coordinates of box relative to the cell
+            x_rel_S = self.S * x - S_row_idx
+            y_rel_S = self.S * y - S_col_idx
+            # Same thing for width and height
+            w_rel_S = w * self.S
+            h_rel_S = h * self.S
 
-                # Only set new box if there is none already!
-                if label[x_S, y_S, 20] == 0.0:
-                    label[x_S, y_S, 20] = 1.0
-                    # Box position and class score
-                    label[x_S, y_S, -5:] = torch.tensor([class_score, x_rel_S, y_rel_S, w_rel_S, h_rel_S],
-                                                        device=self.device)
-                    # Onehot encoding of class score = probabilities of target
-                    label[x_S, y_S, class_score] = 1.0
+            # Only set new box if there is none already!
+            if label[S_row_idx, S_col_idx, 20] == 0.0:
+                label[S_row_idx, S_col_idx, 20] = 1.0
+                # Box position and class score
+                label[S_row_idx, S_col_idx, 21:25] = torch.tensor([x_rel_S, y_rel_S, w_rel_S, h_rel_S],
+                                                                  device=self.device)
+                # Onehot encoding of class score = probabilities of target
+                label[S_row_idx, S_col_idx, class_label] = 1.0
 
         image, label = self.transforms(image, label)
         return image.float(), label
