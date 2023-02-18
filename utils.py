@@ -70,7 +70,7 @@ def _get_box_rect(box: list, width, height, color: str):
         edgecolor=color,
         facecolor='none'
     )
-    plt.annotate(pascal_voc_classes[int(box[0])], (img_x, img_y), color=color)
+    plt.annotate(pascal_voc_classes[int(box[1])], (img_x, img_y), color=color)
     return plot_box
 
 
