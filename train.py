@@ -4,8 +4,8 @@ from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader, SubsetRandomSampler
+import wandb
 
-import utils
 from yolo_dataset import PascalVocDataset, Compose
 from yolo_v1 import YoloV1, YoloLoss
 from utils import plot_gradient_updates, plot_predictions_vs_targets
@@ -14,10 +14,10 @@ device = 'cpu'
 if torch.cuda.is_available():
     device = 'cuda'
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 LR = 2e-5
 SEED = 12345678
-VAL_SPLIT = 0.0
+VAL_SPLIT = 0.1
 
 S = 7
 C = 20
@@ -26,19 +26,32 @@ B = 2
 IMG_X_DIM = 448
 IMG_Y_DIM = 448
 
-LOG_INTERVAL = 100
-EPOCHS = 20000
+EVAL_INTERVAL = 20
+EPOCHS = 200
 
 g = torch.Generator().manual_seed(SEED)
 np.random.seed(SEED)
 
-
-TRAIN_CSV = 'data/8examples.csv'
+TRAIN_CSV = 'data/100examples.csv'
 TEST_CSV = 'data/test.csv'
 
 LOAD_MODEL = True
 MODEL_PATH = 'yolov1_100.pt'
 SAVE_MODEL = False
+
+LOG_RUN_TO_WANDB = True
+WANDB_PROJECT = 'yolo_v1'
+
+if LOG_RUN_TO_WANDB:
+    wandb.init(
+        project=WANDB_PROJECT,
+        config={
+            "learning_rate": LR,
+            "architecture": "YOLO_V1",
+            "dataset": f"Pascal_VOC_{TRAIN_CSV}",
+            "epochs": EPOCHS
+        }
+    )
 
 
 def get_dataloaders(transforms: Compose) -> tuple[DataLoader, DataLoader, DataLoader]:
@@ -64,10 +77,11 @@ def get_dataloaders(transforms: Compose) -> tuple[DataLoader, DataLoader, DataLo
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def run_train_loop(train_loader, model, optimizer, loss_fn, debug=False):
+def run_train_loop(train_loader: DataLoader, model: torch.nn.Module,
+                   optimizer: torch.optim.Optimizer, loss_fn: torch.nn.Module,
+                   debug: bool = False):
     train_loader_tqdm = tqdm(train_loader, leave=True)
     gradient_updates = []
-    lossi = []
 
     for batch_idx, (image, label) in enumerate(train_loader_tqdm):
         # Forward pass
@@ -80,8 +94,11 @@ def run_train_loop(train_loader, model, optimizer, loss_fn, debug=False):
         loss.backward()
         optimizer.step()
 
-        lossi.append(loss.log10().item())
-        train_loader_tqdm.set_postfix(loss=loss.item())
+        loss_i = loss.item()
+        train_loader_tqdm.set_postfix(loss=loss_i)
+
+        if LOG_RUN_TO_WANDB:
+            wandb.log({'train_loss': loss_i})
 
         # Debug Metrics
         if debug:
@@ -89,9 +106,18 @@ def run_train_loop(train_loader, model, optimizer, loss_fn, debug=False):
                 cur_lr = optimizer.param_groups[0]['lr']
                 update = [(cur_lr * p.grad.std() / p.data.std()).log10().item() for p in model.parameters()]
                 gradient_updates.append(update)
-            if batch_idx % LOG_INTERVAL == 0:
+            if batch_idx % EVAL_INTERVAL == 0:
                 plot_gradient_updates(gradient_updates, model.parameters())
-        return lossi, gradient_updates
+
+
+def plot_samples(loader: torch.utils.data.DataLoader, model: torch.nn.Module, n: int = 3):
+    for x, y in loader:
+        for idx in range(max(x.shape[0], n)):
+            x = x.to(device)
+            y = y.to(device)
+            out_idx = model(x)[idx:idx + 1]
+            y_idx = y[idx:idx + 1]
+            plot_predictions_vs_targets(x[idx], out_idx, y_idx)
 
 
 def main():
@@ -101,7 +127,6 @@ def main():
     transform = Compose([transforms.Resize((IMG_Y_DIM, IMG_X_DIM))])
 
     train_loader, val_loader, test_loader = get_dataloaders(transform)
-    # TODO: Remove debug setting after debugging!
 
     if LOAD_MODEL:
         checkpoint = torch.load(MODEL_PATH)
@@ -109,31 +134,33 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
 
     try:
-        losses = []
-        grad_updates = []
         for _ in range(EPOCHS):
+            run_train_loop(train_loader, model, optimizer, loss_fn)
 
-            # # TODO: remove this after testing
-            # for x, y in train_loader:
-            #     x = x.to(device)
-            #     y = y.to(device)
-            #     out = model(x)[0:1]
-            #     y = y[0:1]
-            #     plot_predictions_vs_targets(x[0], out, y)
-            #     import sys
-            #     sys.exit()
+            val_loss_avg = get_val_losses_avg_log10(model, loss_fn, val_loader)
+            if LOG_RUN_TO_WANDB:
+                wandb.log({'val_loss_avg': val_loss_avg})
 
-            lossi, grad_up_i = run_train_loop(train_loader, model, optimizer, loss_fn, debug=False)
-            losses += lossi
-            grad_up_i += grad_up_i
     except KeyboardInterrupt:
-        # plt.plot(torch.tensor(losses).view(-1, 100).mean(1))
-        plt.plot(losses)
-        plt.title('log10 loss')
-        plt.show()
+        pass
     finally:
         if SAVE_MODEL:
             save_checkpoint(model, optimizer)
+
+
+@torch.no_grad()
+def get_val_losses_avg_log10(model: torch.nn.Module, loss_fn: torch.nn.Module, val_loader: DataLoader) -> float:
+    model.eval()
+
+    val_losses = []
+    for batch_idx, (image, label) in enumerate(val_loader):
+        image, label = image.to(device), label.to(device)
+        out = model(image)
+        loss = loss_fn(out, label)
+        val_losses.append(loss.log10().item())
+
+    model.train()
+    return sum(val_losses) / len(val_losses)
 
 
 def save_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Optimizer):
