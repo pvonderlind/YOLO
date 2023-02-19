@@ -16,6 +16,7 @@ if torch.cuda.is_available():
 
 BATCH_SIZE = 16
 LR = 2e-5
+WEIGHT_DECAY = 0.0005
 SEED = 12345678
 VAL_SPLIT = 0.1
 
@@ -32,12 +33,12 @@ EPOCHS = 200
 g = torch.Generator().manual_seed(SEED)
 np.random.seed(SEED)
 
-TRAIN_CSV = 'data/100examples.csv'
+TRAIN_CSV = 'data/train.csv'
 TEST_CSV = 'data/test.csv'
 
 LOAD_MODEL = True
-MODEL_PATH = 'yolov1_100.pt'
-SAVE_MODEL = False
+MODEL_PATH = 'yolo_v1_full.pt'
+SAVE_MODEL = True
 
 LOG_RUN_TO_WANDB = True
 WANDB_PROJECT = 'yolo_v1'
@@ -47,6 +48,7 @@ if LOG_RUN_TO_WANDB:
         project=WANDB_PROJECT,
         config={
             "learning_rate": LR,
+            "weight_decay": WEIGHT_DECAY,
             "architecture": "YOLO_V1",
             "dataset": f"Pascal_VOC_{TRAIN_CSV}",
             "epochs": EPOCHS
@@ -123,7 +125,7 @@ def plot_samples(loader: torch.utils.data.DataLoader, model: torch.nn.Module, n:
 def main():
     model = YoloV1(S, B, C).to(device)
     loss_fn = YoloLoss(S, B, C, l_noobj=0.5, l_coord=5).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     transform = Compose([transforms.Resize((IMG_Y_DIM, IMG_X_DIM))])
 
     train_loader, val_loader, test_loader = get_dataloaders(transform)
@@ -157,7 +159,7 @@ def get_val_losses_avg_log10(model: torch.nn.Module, loss_fn: torch.nn.Module, v
         image, label = image.to(device), label.to(device)
         out = model(image)
         loss = loss_fn(out, label)
-        val_losses.append(loss.log10().item())
+        val_losses.append(loss.item())
 
     model.train()
     return sum(val_losses) / len(val_losses)
