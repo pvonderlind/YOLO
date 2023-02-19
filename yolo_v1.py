@@ -65,7 +65,7 @@ class YoloV1(torch.nn.Module):
         self.final_dense = torch.nn.Sequential(
             torch.nn.Flatten(),
             torch.nn.Linear(7 * 7 * 1024, self.final_layer_size),
-            torch.nn.Dropout(0.0),
+            torch.nn.Dropout(0.5),
             torch.nn.LeakyReLU(0.1),
             # Last layer dims = (S, S, 30) where (C+B*5) = 30
             torch.nn.Linear(self.final_layer_size, self.S * self.S * (self.C + self.B * 5)),
