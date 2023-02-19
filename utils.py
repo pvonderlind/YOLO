@@ -44,6 +44,21 @@ def plot_predictions_vs_targets(image: torch.Tensor, predictions: torch.Tensor, 
     plt.show()
 
 
+def plot_predictions(image: torch.Tensor, predictions: torch.Tensor):
+    pred_boxes = get_box_list_from_tensor(predictions)
+    pred_boxes = non_max_suppression(pred_boxes, 0.5)
+
+    fig, ax = plt.subplots(1)
+    image = image.to('cpu').long()
+    _, width, height = image.shape
+    ax.imshow(image.permute(1, 2, 0))
+
+    for box in pred_boxes:
+        box_plt_rect = _get_box_rect(box, width, height, 'r')
+        ax.add_patch(box_plt_rect)
+    plt.show()
+
+
 def _plot_box_predictions_on_image(width, height, ax, box_pred: list, box_target: list):
     for box_p, box_t in zip(box_pred, box_target):
         box_p_plot = _get_box_rect(box_p, width, height, 'r')
@@ -108,7 +123,7 @@ def convert_box_predictions_to_cell_boxes(boxes: torch.Tensor) -> torch.Tensor:
     _, best_box_section_idx = scores.max(dim=0)
 
     # (N, 7, 7, 4) -> Coords of the best box per section
-    best_box_coords = box1_coords * (1-best_box_section_idx) + best_box_section_idx * box2_coords
+    best_box_coords = box1_coords * (1 - best_box_section_idx) + best_box_section_idx * box2_coords
     best_box_img_coords = _convert_box_coords_to_img_coords_for(best_box_coords)
 
     # (N, 7, 7, 2)
