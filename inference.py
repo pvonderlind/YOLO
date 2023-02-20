@@ -19,6 +19,7 @@ if torch.cuda.is_available():
 tkinter.Tk().withdraw()
 
 
+@torch.no_grad()
 def main():
     print(f'Loading model {MODEL_PATH} ...')
     model = YoloV1()
@@ -37,7 +38,8 @@ def main():
     img_batch = torch.stack(images, dim=0).float().to(DEVICE)
     out = model(img_batch)
     for i in range(out.shape[0]):
-        plot_predictions(img_batch[i], out[i:i+1])
+        pred = out[i:i+1]
+        plot_predictions(img_batch[i], pred)
 
 
 if __name__ == "__main__":
