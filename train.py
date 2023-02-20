@@ -8,7 +8,7 @@ import wandb
 
 from yolo_dataset import PascalVocDataset, Compose
 from yolo_v1 import YoloV1, YoloLoss
-from utils import plot_gradient_updates, plot_predictions_vs_targets
+from utils import plot_predictions_vs_targets
 
 device = 'cpu'
 if torch.cuda.is_available():
@@ -38,7 +38,7 @@ TEST_CSV = 'data/test.csv'
 
 LOAD_MODEL = True
 MODEL_PATH = 'yolo_v1_full.pt'
-SAVE_MODEL = True
+SAVE_MODEL = False
 
 LOG_RUN_TO_WANDB = True
 WANDB_PROJECT = 'yolo_v1'
@@ -47,6 +47,7 @@ if LOG_RUN_TO_WANDB:
     wandb.init(
         project=WANDB_PROJECT,
         config={
+            "model_file": MODEL_PATH,
             "learning_rate": LR,
             "weight_decay": WEIGHT_DECAY,
             "architecture": "YOLO_V1",
@@ -83,7 +84,6 @@ def run_train_loop(train_loader: DataLoader, model: torch.nn.Module,
                    optimizer: torch.optim.Optimizer, loss_fn: torch.nn.Module,
                    debug: bool = False):
     train_loader_tqdm = tqdm(train_loader, leave=True)
-    gradient_updates = []
 
     for batch_idx, (image, label) in enumerate(train_loader_tqdm):
         # Forward pass
@@ -106,10 +106,10 @@ def run_train_loop(train_loader: DataLoader, model: torch.nn.Module,
         if debug:
             with torch.no_grad():
                 cur_lr = optimizer.param_groups[0]['lr']
-                update = [(cur_lr * p.grad.std() / p.data.std()).log10().item() for p in model.parameters()]
-                gradient_updates.append(update)
-            if batch_idx % EVAL_INTERVAL == 0:
-                plot_gradient_updates(gradient_updates, model.parameters())
+                wandb.log({'learning_rate': cur_lr})
+                grad_updates = {name: (cur_lr * p.grad.std() / p.data.std()).log10().item() for name, p in
+                                model.named_parameters()}
+                wandb.log(grad_updates)
 
 
 def plot_samples(loader: torch.utils.data.DataLoader, model: torch.nn.Module, n: int = 3):
@@ -137,7 +137,7 @@ def main():
 
     try:
         for _ in range(EPOCHS):
-            run_train_loop(train_loader, model, optimizer, loss_fn)
+            run_train_loop(train_loader, model, optimizer, loss_fn, debug=True)
 
             val_loss_avg = get_val_losses_avg_log10(model, loss_fn, val_loader)
             if LOG_RUN_TO_WANDB:
