@@ -14,6 +14,21 @@ LABEL_DIR = 'data/labels'
 # In the paper of YOLOV2 the authors found that choosing K=5 yields the best results.
 K = 5
 
+
+def get_bbox_priors(dataset_file: str = DATASET_FILE, label_dir: str = LABEL_DIR, k: int = K):
+    bboxes = _get_boxes_tensor_from_dataset_labels(dataset_file, label_dir)
+    bbox_centroids = _iou_kmeans(bboxes, k, stop_iter=1)
+    return _convert_bboxes_to_priors(bbox_centroids)
+
+
+def _convert_bboxes_to_priors(bboxes: torch.Tensor) -> torch.Tensor:
+    # (N, 2) where dim 1 consists of the box width and height
+    priors = torch.zeros((bboxes.shape[0], 2))
+    priors[:, 0] = bboxes[:, 2] - bboxes[:, 0]
+    priors[:, 1] = bboxes[:, 3] - bboxes[:, 1]
+    return priors
+
+
 def _get_boxes_tensor_from_dataset_labels(path_to_ds_file: str, label_dir: str) -> torch.Tensor():
     """
     :return: A tensor of bounding box labels read from the given files. The boxes have the format
@@ -32,23 +47,22 @@ def _get_boxes_tensor_from_dataset_labels(path_to_ds_file: str, label_dir: str) 
                 # In the label file repesentation, x,y are the center of the box relative to the img!
                 box.pop(0)  # Remove the class prediction
                 x, y, w, h = box
-                x_1 = x - w/2
-                y_1 = y - h/2
-                x_2 = x + w/2
-                y_2 = y + h/2
+                x_1 = x - w / 2
+                y_1 = y - h / 2
+                x_2 = x + w / 2
+                y_2 = y + h / 2
                 box_torch_format = [x_1, y_1, x_2, y_2]
                 boxes.append(box_torch_format)
     return torch.tensor(boxes)
 
 
-def _iou_kmeans(bboxes: torch.Tensor, k: int, stop_iter: int = 5) -> tuple[torch.Tensor, torch.Tensor]:
+def _iou_kmeans(bboxes: torch.Tensor, k: int, stop_iter: int = 5) -> torch.Tensor:
     """
     :param bboxes: (N, 4) with box coordinates x_1, y_1, x_2, y_2 in relation to the image [0,1]
     :param k: Number k of clusters to find in the boxes.
     :param stop_iter: Defines after how many refinement iterations to stop.
-    :return: Returns the cluster centroid boxes in relation to img in shape (k, 4) and the distances of
-    all boxes to those cluster centroids.
-    """
+    :return: Returns the cluster centroid boxes in relation to img in shape (k, 4) where dim 1 has the shape
+     x_1, y_1, x_2, y_2 """
     n_boxes = bboxes.shape[0]
     distances = torch.empty((n_boxes, k))
     last_clusters = torch.empty((n_boxes,))
@@ -81,14 +95,8 @@ def _iou_kmeans(bboxes: torch.Tensor, k: int, stop_iter: int = 5) -> tuple[torch
             if cluster_idx in nearest_clusters:
                 clusters[cluster_idx] = torch.mean(bboxes[nearest_clusters == cluster_idx], dim=0)
         last_clusters = nearest_clusters.clone()
-    return clusters, distances
-
-
-def main():
-    bboxes = _get_boxes_tensor_from_dataset_labels(DATASET_FILE, LABEL_DIR)
-    clusters, distances = _iou_kmeans(bboxes, K, stop_iter=1)
-    print(clusters)
+    return clusters
 
 
 if __name__ == "__main__":
-    main()
+    print(get_bbox_priors())
