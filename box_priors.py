@@ -14,9 +14,6 @@ LABEL_DIR = 'data/labels'
 # In the paper of YOLOV2 the authors found that choosing K=5 yields the best results.
 K = 5
 
-
-# TODO: Fix box creation, I am not sure the adding of coordinates does really work
-# Probably somethign weird with image space versus cell space...
 def _get_boxes_tensor_from_dataset_labels(path_to_ds_file: str, label_dir: str) -> torch.Tensor():
     """
     :return: A tensor of bounding box labels read from the given files. The boxes have the format
