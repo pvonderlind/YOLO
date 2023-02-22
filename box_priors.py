@@ -42,6 +42,13 @@ def _get_boxes_tensor_from_dataset_labels(path_to_ds_file: str, label_dir: str) 
 
 
 def _iou_kmeans(bboxes: torch.Tensor, k: int, stop_iter: int = 5) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    :param bboxes: (N, 4) with box coordinates x_1, y_1, x_2, y_2 in relation to the image [0,1]
+    :param k: Number k of clusters to find in the boxes.
+    :param stop_iter: Defines after how many refinement iterations to stop.
+    :return: Returns the cluster centroid boxes in relation to img in shape (k, 4) and the distances of
+    all boxes to those cluster centroids.
+    """
     n_boxes = bboxes.shape[0]
     distances = torch.empty((n_boxes, k))
     last_clusters = torch.empty((n_boxes,))
