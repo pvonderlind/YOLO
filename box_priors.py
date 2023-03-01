@@ -15,7 +15,13 @@ LABEL_DIR = 'data/labels'
 K = 5
 
 
-def get_bbox_priors(dataset_file: str = DATASET_FILE, label_dir: str = LABEL_DIR, k: int = K):
+def get_bbox_priors(dataset_file: str = DATASET_FILE, label_dir: str = LABEL_DIR, k: int = K) -> torch.Tensor:
+    """
+    :param dataset_file:
+    :param label_dir:
+    :param k:
+    :return: Tensor of box priors of shape (N, 2), where the last dim consists of width and height of the prior bbox.
+    """
     bboxes = _get_boxes_tensor_from_dataset_labels(dataset_file, label_dir)
     bbox_centroids = _iou_kmeans(bboxes, k, stop_iter=1)
     return _convert_bboxes_to_priors(bbox_centroids)

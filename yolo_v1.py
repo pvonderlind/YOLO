@@ -101,7 +101,7 @@ class ConvBlock(torch.nn.Module):
 
 
 class YoloLoss(torch.nn.Module):
-    def __init__(self, S: int = 7, B: int = 2, C: int = 20, l_coord: float = 5, l_noobj: float = 5):
+    def __init__(self, S: int = 7, B: int = 2, C: int = 20, l_coord: float = 5, l_noobj: float = .5):
         super().__init__()
         self.S = S
         self.B = B
