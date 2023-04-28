@@ -7,3 +7,7 @@ Currently implemented are:
 
 My motivation behind this project was to get a better understanding of how the loss function for the YOLO family of 
 algorithm is designed and how they can be implemented in PyTorch efficiently.
+
+## Datasets
+
+For training, the 8- and 100-example versions of the COCO dataset, which is also used in YOLO_V1.
