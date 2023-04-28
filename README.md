@@ -10,4 +10,4 @@ algorithm is designed and how they can be implemented in PyTorch efficiently.
 
 ## Datasets
 
-For training, the 8- and 100-example versions of the COCO dataset, which is also used in YOLO_V1.
+For training and evaluation I use the 8- and 100-example versions of the COCO dataset, which are also used in YOLO_V1.
